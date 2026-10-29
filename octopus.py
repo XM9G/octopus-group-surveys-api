@@ -403,12 +403,12 @@ if __name__ == '__main__':
 
     print('\n===== Survey Stats =====')
     if 'Complete' in survey_stats:
-        print(f"Complete: {survey_stats['Complete']}")
+        print(f"Completed: {survey_stats['Complete']} ({survey_stats['Complete'] / (survey_stats['Complete'] + survey_stats.get('ScreenerFail', 0) + survey_stats.get('QA', 0) + survey_stats.get('QuotaFail', 0) + survey_stats.get('Active', 0)) * 100:.2f}%)")
     if 'ScreenerFail' in survey_stats:
-        print(f"Screened Out: {survey_stats['ScreenerFail']}")
+        print(f"Screened Out: {survey_stats['ScreenerFail']} ({survey_stats['ScreenerFail'] / (survey_stats['Complete'] + survey_stats.get('ScreenerFail', 0) + survey_stats.get('QA', 0) + survey_stats.get('QuotaFail', 0) + survey_stats.get('Active', 0)) * 100:.2f}%)")
     if 'QA' in survey_stats:
-        print(f"QA Flagged: {survey_stats['QA']}")
+        print(f"QA Flagged: {survey_stats['QA']} ({survey_stats['QA'] / (survey_stats['Complete'] + survey_stats.get('ScreenerFail', 0) + survey_stats.get('QA', 0) + survey_stats.get('QuotaFail', 0) + survey_stats.get('Active', 0)) * 100:.2f}%)")
     if 'QuotaFail' in survey_stats:
-        print(f"Quota Exceeded: {survey_stats['QuotaFail']}")
+        print(f"Quota Exceeded: {survey_stats['QuotaFail']} ({survey_stats['QuotaFail'] / (survey_stats['Complete'] + survey_stats.get('ScreenerFail', 0) + survey_stats.get('QA', 0) + survey_stats.get('QuotaFail', 0) + survey_stats.get('Active', 0)) * 100:.2f}%)")
     if 'Active' in survey_stats:
-        print(f"Active: {survey_stats['Active']}")
+        print(f"Active: {survey_stats['Active']} ({survey_stats['Active'] / (survey_stats['Complete'] + survey_stats.get('ScreenerFail', 0) + survey_stats.get('QA', 0) + survey_stats.get('QuotaFail', 0) + survey_stats.get('Active', 0)) * 100:.2f}%)")
