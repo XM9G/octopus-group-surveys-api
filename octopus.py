@@ -399,7 +399,7 @@ if __name__ == '__main__':
     print('\n===== Balance =====')
     print(f'Current Balance: ${balance:.2f}')
     print(f'Total Redeemed: ${total_redeemed:.2f}')
-    print(f'Time Required: ${total_earned:.2f}')
+    print(f'Total Earned: ${total_earned:.2f}')
 
     print('\n===== Survey Stats =====')
     if 'Complete' in survey_stats:
