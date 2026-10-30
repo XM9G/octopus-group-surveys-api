@@ -372,7 +372,16 @@ if __name__ == '__main__':
     open_surveys = o.get_open_surveys()
     balance = o.get_balance()
     total_redeemed = o.get_total_redeemed()
-    total_earned = o.get_total_earned()
+
+    # total_earned = o.get_total_earned()
+    '''
+    get_total_earned() calls the API endpoint for balance and the API endpoint
+    for total_redeemed. given that both balance and total_redeemed are already
+    accessed above, 2 API calls can be saved by manually adding them
+    '''
+    total_earned = balance + total_redeemed
+
+
     survey_stats = o.survey_stats()
 
     print('===== Open Surveys =====')
