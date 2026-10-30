@@ -301,9 +301,12 @@ class OctopusAuth:
 
 
 class OctopusAPI:
+
     def __init__(self, json_file: str):
         self.json_file = json_file
         self.octopusauth = OctopusAuth(json_file)
+
+        self.site = 'https://my.octopusgroup.com.au'
 
         self.api_member_details = "/Member/Details"
         self.api_open_surveys = "/Survey/OpenSurveys"
@@ -314,38 +317,45 @@ class OctopusAPI:
         self.api_get_surveys = '/SurveyHistory/GetHistories'
         self.api_get_incentives = '/Incentive/GetIncentives'
 
+        # The page the real site makes each call from
+        self.referers = {
+            self.api_member_details: f'{self.site}/',
+            self.api_open_surveys: f'{self.site}/',
+            self.api_get_redemptions: f'{self.site}/redeem',
+            self.api_redeem_setup_approval: f'{self.site}/redeem',
+            self.api_redeem_check_for_approval: f'{self.site}/redeem',
+            self.api_redeem_cash: f'{self.site}/redeem',
+            self.api_get_surveys: f'{self.site}/history',
+            self.api_get_incentives: f'{self.site}/incentives',
+        }
+
+    def _get(self, endpoint: str):
+        return self.octopusauth.get_request(
+            endpoint,
+            headers={'Referer': self.referers[endpoint]}
+        )
+
+    def _post(self, endpoint: str, payload: dict):
+        return self.octopusauth.post_request(
+            endpoint,
+            headers={'Referer': self.referers[endpoint]},
+            payload=payload
+        )
+
     def get_member_details(self):
-        return self.octopusauth.get_request(self.api_member_details)
+        return self._get(self.api_member_details)
 
     def get_open_surveys(self):
-        return self.octopusauth.get_request(self.api_open_surveys)
+        return self._get(self.api_open_surveys)
 
     def get_all_surveys(self):
-        return self.octopusauth.post_request(
-            self.api_get_surveys,
-            payload={
-                "PageNumber": 0,
-                "PageSize": 1000
-            }
-        )
+        return self._post(self.api_get_surveys, {"PageNumber": 0, "PageSize": 1000})
 
     def get_incentive_history(self):
-        return self.octopusauth.post_request(
-            self.api_get_incentives,
-            payload={
-                "PageNumber": 0,
-                "PageSize": 1000
-            }
-        )
+        return self._post(self.api_get_incentives, {"PageNumber": 0, "PageSize": 1000})
 
     def get_redemptions(self):
-        return self.octopusauth.post_request(
-            self.api_get_redemptions,
-            payload={
-                "PageNumber": 0,
-                "PageSize": 1000
-            }
-        )
+        return self._post(self.api_get_redemptions, {"PageNumber": 0, "PageSize": 1000})
 
 
 class Octopus:
