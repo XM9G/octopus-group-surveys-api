@@ -102,7 +102,7 @@ class OctopusAPI:
 
             return auth_token
         
-        print("Saved refresh token expired or invalid. Falling back to API login...")
+        print("Saved refresh token expired, invalid, or missing. Falling back to API login...")
 
         # Step B: Use login API endpoint, and also get a new refresh token
 
@@ -155,19 +155,27 @@ class OctopusAPI:
 
         if not refresh_token_request:
             print("Failed to generate refresh token. The Firebase API key may be incorrect.")
-            refresh_token = None
+            return None
         else:
             refresh_token = refresh_token_request['refreshToken']
-        
-        # Step C: Save fresh credentials
+
+        # 1. Update self.refresh_token first so the next function can see it
         self.refresh_token = refresh_token
-        self.authorization = auth_token
         self.credentials['refresh_token'] = refresh_token
+
+        # 2. Now generate the Firebase ID token using the new refresh token
+        auth_token = self.regenerate_authorization_token()
+        if not auth_token:
+            print("Failed to generate Firebase ID token.")
+            return None
+        
+        # 3. Save everything else
+        self.authorization = auth_token
         self.credentials['authorization'] = auth_token
 
         print("Saved new refresh token and Firebase API key successfully!")
 
-        with open(self.json_file, 'w') as f:
+        with open(self.json_file, 'w', encoding='utf-8') as f:
             json.dump(self.credentials, f, indent=4)
 
         return auth_token
