@@ -431,11 +431,9 @@ if __name__ == '__main__':
     open_surveys = o.get_open_surveys()
     balance = o.get_balance()
     total_redeemed = o.get_total_redeemed()
-    survey_stats = o.survey_stats(active=open_surveys['number'])
-    total_earned = o.get_total_earned(balance=balance, total_redeemed=total_redeemed)
-    # balance and total_redeemed parameters are optional but used here given balance and total_redeemed are already known to save 2 redundant API calls
-    redeemable_balance = o.get_redeemable_balance(balance=balance)
-    # balance parameter is again optional but used here to save a redundant API call
+    total_earned = o.get_total_earned(balance=balance, total_redeemed=total_redeemed) # balance and total_redeemed parameters are optional but used here given balance and total_redeemed are already known to save 2 redundant API calls
+    redeemable_balance = o.get_redeemable_balance(balance=balance) # balance parameter is again optional but used here to save a redundant API call
+    survey_stats = o.survey_stats(active=open_surveys['number']) # active parameter optional as well
 
     print('===== Open Surveys =====')
     print(f'You have {open_surveys['number']} open survey{'' if open_surveys['number'] == 1 else 's'}.')
