@@ -35,11 +35,11 @@ Total Redeemed: $120.00
 Time Required: $148.12
 
 ===== Survey Stats =====
-Complete: 61
-Screened Out: 18
-QA Flagged: 3
-Quota Exceeded: 6
-Active: 2
+Complete: 61 (67.78%)
+Screened Out: 18 (20.00%)
+QA Flagged: 3 (3.33%)
+Quota Exceeded: 6 (6.67%)
+Active: 2 (2.22%)
 ```
 
 you can use the code for any project of course this just demonstrates that it actually works
