@@ -384,6 +384,8 @@ if __name__ == '__main__':
 
     survey_stats = o.survey_stats()
 
+    redeemable_balance = 0 if balance < 20 else int(balance//5*5)
+
     print('===== Open Surveys =====')
     print(f'You have {open_surveys['number']} open survey{'' if open_surveys['number'] == 1 else 's'}.')
     print(f'Possible Earnings: ${open_surveys['total_earnings']:.2f}')
@@ -391,6 +393,7 @@ if __name__ == '__main__':
 
     print('\n===== Balance =====')
     print(f'Current Balance: ${balance:.2f}')
+    print(f'Redeemable Balance: ${redeemable_balance:.2f}')
     print(f'Total Redeemed: ${total_redeemed:.2f}')
     print(f'Total Earned: ${total_earned:.2f}')
 
