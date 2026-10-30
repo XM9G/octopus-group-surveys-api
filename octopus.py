@@ -318,8 +318,9 @@ class Octopus:
     def get_balance(self):
         return self._get_member_details()['points']
     
-    def get_redeemable_balance(self):
-        balance = self.get_balance()
+    def get_redeemable_balance(self, balance: float = None):
+        if balance is None:
+            balance = self.get_balance()
         return 0 if balance < 20 else int(balance//5*5)
 
     def get_total_redeemed(self):
@@ -328,9 +329,13 @@ class Octopus:
         total_redeemed = sum([r['amount'] for r in redemptions])
         return total_redeemed
 
-    def get_total_earned(self):
-        return self.get_total_redeemed() + self.get_balance()
-
+    def get_total_earned(self, total_redeemed: float = None, balance: float = None):
+        if total_redeemed is None:
+            total_redeemed = self.get_total_redeemed()
+        if balance is None:
+            balance = self.get_balance()
+        return total_redeemed + balance
+    
     def get_open_surveys(self):
         open_surveys = self._get_open_surveys()
 
@@ -377,16 +382,10 @@ if __name__ == '__main__':
     balance = o.get_balance()
     total_redeemed = o.get_total_redeemed()
     survey_stats = o.survey_stats()
-
-    # total_earned = o.get_total_earned()
-    total_earned = balance + total_redeemed
-    # get_total_earned() calls the API endpoint for balance and the API endpoint
-    # for total_redeemed. given that both balance and total_redeemed are already
-    # accessed above, 2 API calls can be saved by manually adding them
-
-    # redeemable_balance = o.get_redeemable_balance()
-    redeemable_balance = 0 if balance < 20 else int(balance//5*5)
-    # removes another redundant api call, same reason
+    total_earned = o.get_total_earned(balance=balance, total_redeemed=total_redeemed)
+    # balance and total_redeemed parameters are optional but used here given balance and total_redeemed are already known to save 2 redundant API calls
+    redeemable_balance = o.get_redeemable_balance(balance=balance)
+    # balance parameter is again optional but used here to save a redundant API call
 
     print('===== Open Surveys =====')
     print(f'You have {open_surveys['number']} open survey{'' if open_surveys['number'] == 1 else 's'}.')
