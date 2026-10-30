@@ -1,13 +1,7 @@
-import os
 import requests
 import json
-import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from bs4 import BeautifulSoup
 from collections import defaultdict
-
 
 class OctopusAPI:
     def __init__(self, json_file: str):
@@ -32,6 +26,13 @@ class OctopusAPI:
                 setattr(self, key, None)
                 self.credentials[key] = ""
                 file_updated = True
+
+        if not self.firebase_api_key:
+            api_key = self.regenerate_firebase_api_key()
+
+            self.firebase_api_key = api_key
+            self.credentials['firebase_api_key'] = api_key
+            file_updated = True
 
         # Save back to the file only if missing keys were added/updated
         if file_updated:
@@ -58,7 +59,30 @@ class OctopusAPI:
         if response.status_code != 200:
             return None
 
-        return 'Bearer ' + response.json().get("id_token")
+        return response.json().get("id_token")
+
+    def regenerate_firebase_api_key(self):
+        # get the login page html and parse for main js file name
+        
+        r = requests.get('https://my.octopusgroup.com.au/login')
+        soup = BeautifulSoup(r.text, 'html.parser')
+        scripts = soup.find_all("script")
+        for script in scripts:
+            if script.get('src'):
+                if script['src'].startswith('main.'):
+                    main_js = script['src']
+                    break
+
+        main_js_url = 'https://my.octopusgroup.com.au/' + main_js
+
+        # get the firebase api key from the main js file
+
+        r = requests.get(main_js_url)
+        js_text = r.text
+        api_key = js_text.split('apiKey:"')[1].split('"')[0].strip()
+
+        return api_key
+        
 
 
     def get_authorization(self):
@@ -70,9 +94,6 @@ class OctopusAPI:
             print("Found saved refresh token and Firebase API key. Generating authorization token via API...")
             auth_token = self.regenerate_authorization_token()
 
-            if not auth_token:
-                print("Saved refresh token expired or invalid. Falling back to Selenium login...")
-
         if auth_token:
             self.authorization = auth_token
             self.credentials['authorization'] = auth_token
@@ -80,146 +101,94 @@ class OctopusAPI:
                 json.dump(self.credentials, f, indent=4)
 
             return auth_token
+        
+        print("Saved refresh token expired or invalid. Falling back to API login...")
 
-        # Step B: Fall back to Selenium login
-        print("Launching headless browser to capture fresh credentials...")
+        # Step B: Use login API endpoint, and also get a new refresh token
 
-        options = webdriver.ChromeOptions()
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        driver = webdriver.Chrome(options=options)
 
-        try:
-            wait = WebDriverWait(driver, 10)
+        # log in and get the authorization token
+        auth_token_request = self.post_request(
+            '/Auth/Login',
+            payload={
+                'phoneNumber':'+61'+self.phone, 
+                'password':self.password
+            },
+            require_auth=False
+        )
 
-            driver.get("https://my.octopusgroup.com.au/login")
+        if not auth_token_request:
+            print("Failed to log in with given credentials. Check that you have entered the right phone number and password.")
+            exit()
 
-            driver.execute_script("""
-                window.__capturedRefreshToken = null;
-                window.__capturedApiKey = null;
+        auth_token = auth_token_request['token']
 
-                function checkUrlForKey(url) {
-                    if (typeof url === 'string' && url.includes('identitytoolkit.googleapis.com')) {
-                        const match = url.match(/[?&]key=([^&]+)/);
-                        if (match) {
-                            window.__capturedApiKey = match[1];
-                        }
-                    }
-                }
+        # use the authorization token and the firebase api key to get refresh token
 
-                const originalFetch = window.fetch;
-                window.fetch = async function(...args) {
-                    checkUrlForKey(args[0]);
+        refresh_token_request = self.post_request(
+            f'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={self.firebase_api_key}',
+            payload={
+                "token": auth_token,
+                "returnSecureToken": True
+            },
+            base='',
+            require_auth=False
+        )
 
-                    const response = await originalFetch.apply(this, args);
+        if not refresh_token_request:
+            api_key = self.regenerate_firebase_api_key()
 
-                    try {
-                        const clone = response.clone();
-                        const json = await clone.json();
+            self.firebase_api_key = api_key
+            self.credentials['firebase_api_key'] = api_key
+            with open(self.json_file, 'w') as f:
+                json.dump(self.credentials, f, indent=4)
 
-                        if (json && json.refreshToken) {
-                            window.__capturedRefreshToken = json.refreshToken;
-                        }
-                    } catch(e) {}
-
-                    return response;
-                };
-
-                const originalOpen = XMLHttpRequest.prototype.open;
-                XMLHttpRequest.prototype.open = function(method, url) {
-                    checkUrlForKey(url);
-
-                    this.addEventListener('load', function() {
-                        try {
-                            const json = JSON.parse(this.responseText);
-
-                            if (json && json.refreshToken) {
-                                window.__capturedRefreshToken = json.refreshToken;
-                            }
-                        } catch(e) {}
-                    });
-
-                    return originalOpen.apply(this, arguments);
-                };
-            """)
-
-            phone_input = wait.until(
-                EC.presence_of_element_located((By.ID, "phone"))
-            )
-            phone_input.clear()
-            phone_input.send_keys(self.phone)
-
-            password_input = driver.find_element(
-                By.CSS_SELECTOR,
-                "input[formcontrolname='password']"
-            )
-            password_input.clear()
-            password_input.send_keys(self.password)
-
-            login_button = wait.until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR, "button.signInBubble")
-                )
-            )
-            login_button.click()
-
-            print("Waiting for login authentication...")
-            time.sleep(4)
-
-            refresh_token = driver.execute_script(
-                "return window.__capturedRefreshToken;"
-            )
-            api_key = driver.execute_script(
-                "return window.__capturedApiKey;"
+            refresh_token_request = self.post_request(
+                f'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={self.firebase_api_key}',
+                payload={
+                    "token": auth_token,
+                    "returnSecureToken": True
+                },
+                base='',
+                require_auth=False
             )
 
-        except Exception as e:
-            print(f"Selenium automation error: {e}")
-            return None
-
-        finally:
-            driver.quit()
-
-        # Step C: Check that credentials were captured
-        if not refresh_token or not api_key:
-            print("Failed to capture refresh token and API key during Selenium login.")
-            return None
-
-        # Step D: Save fresh credentials
+        if not refresh_token_request:
+            print("Failed to generate refresh token. The Firebase API key may be incorrect.")
+            refresh_token = None
+        else:
+            refresh_token = refresh_token_request['refreshToken']
+        
+        # Step C: Save fresh credentials
         self.refresh_token = refresh_token
-        self.firebase_api_key = api_key
+        self.authorization = auth_token
         self.credentials['refresh_token'] = refresh_token
-        self.credentials['firebase_api_key'] = api_key
+        self.credentials['authorization'] = auth_token
+
+        print("Saved new refresh token and Firebase API key successfully!")
 
         with open(self.json_file, 'w') as f:
             json.dump(self.credentials, f, indent=4)
 
-        print("Saved new refresh token and Firebase API key successfully!")
-
-        # Step E: Generate final authorization token
-        auth_token = self.regenerate_authorization_token()
-
-        if auth_token:
-            self.authorization = auth_token
-            self.credentials['authorization'] = auth_token
-            with open(self.json_file, 'w') as f:
-                json.dump(self.credentials, f, indent=4)
-
         return auth_token
 
 
-    def get_request(self, api_endpoint: str, headers: dict = None, _attempt: int = 0):
-        if not self.authorization:
-            self.get_authorization()
-
+    def get_request(self, api_endpoint: str, headers: dict = None, _attempt: int = 0, base: str = None, require_auth: bool = True):
+        
         if headers is None:
             headers = {}
-        headers['Authorization'] = self.authorization
+
+        if require_auth:
+            if not self.authorization:
+                self.get_authorization()
+
+            headers['Authorization'] = 'Bearer '+self.authorization
 
         try:
-            response = requests.get(url=self.api_base+api_endpoint, headers=headers)
+            if base is None:
+                base = self.api_base
+                
+            response = requests.get(url=base+api_endpoint, headers=headers)
 
             if response.status_code == 401:
                 print("Received 401 Unauthorized. Token may have expired. Generating a new one...")
@@ -229,7 +198,7 @@ class OctopusAPI:
                     return None
                 
                 self.get_authorization()
-                return self.get_request(api_endpoint=api_endpoint, headers=headers, _attempt=_attempt+1)
+                return self.get_request(api_endpoint=api_endpoint, headers=headers, _attempt=_attempt+1, base=base)
 
             elif response.status_code == 200:
                 try:
@@ -239,23 +208,30 @@ class OctopusAPI:
                 
             else:
                 print(f"Failed with status code: {response.status_code}")
-                print(response.text)
+                if response.status_code != "404":
+                    print(response.text)
                 return None
             
         except Exception as e:
             print(f"An error occurred: {e}")
             return None
     
-    def post_request(self, api_endpoint: str, headers: dict = None, payload: dict = None, _attempt: int = 0):
-        if not self.authorization:
-            self.get_authorization()
-            
+    def post_request(self, api_endpoint: str, headers: dict = None, payload: dict = None, _attempt: int = 0, base: str = None, require_auth: bool = True):
+
         if headers is None:
             headers = {}
-        headers['Authorization'] = self.authorization
+
+        if require_auth:
+            if not self.authorization:
+                self.get_authorization()
+
+            headers['Authorization'] = 'Bearer '+self.authorization
         
         try:
-            response = requests.post(url=self.api_base + api_endpoint, headers=headers, json=payload)
+            if base is None:
+                base = self.api_base
+            
+            response = requests.post(url=base + api_endpoint, headers=headers, json=payload)
 
             if response.status_code == 401:
                 print("Received 401 Unauthorized. Token may have expired. Generating a new one...")
@@ -265,7 +241,7 @@ class OctopusAPI:
                     return None
                 
                 self.get_authorization()
-                return self.post_request(api_endpoint=api_endpoint, headers=headers, payload=payload, _attempt=_attempt + 1)
+                return self.post_request(api_endpoint=api_endpoint, headers=headers, payload=payload, _attempt=_attempt + 1, base=base)
 
             elif response.status_code in (200, 201):
                 try:
