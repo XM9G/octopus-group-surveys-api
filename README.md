@@ -42,6 +42,3 @@ Active: 2
 ```
 
 you can use the code for any project of course this just demonstrates that it actually works
-
-# other
-yes i know the selenium code is a bit sloppy, but it works. if it breaks or needs improving you might have to do that yourself cause it works fine for me (currently)
