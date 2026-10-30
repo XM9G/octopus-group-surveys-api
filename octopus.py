@@ -1,21 +1,10 @@
+import requests
 import base64
 import json
 import random
 import time
 from collections import defaultdict
-
-import requests
 from bs4 import BeautifulSoup
-
-def token_expired(token: str, skew: int = 300) -> bool:
-    """True if the JWT is missing, unreadable, or expires within `skew` seconds."""
-    try:
-        payload = token.split('.')[1]
-        payload += '=' * (-len(payload) % 4)
-        exp = json.loads(base64.urlsafe_b64decode(payload))['exp']
-        return time.time() > exp - skew
-    except Exception:
-        return True
 
 
 class OctopusAuth:
@@ -233,6 +222,17 @@ class OctopusAuth:
     def _ensure_token(self) -> bool:
         """Refresh proactively if the token is missing or about to expire,
         so we don't generate a 401 on every run."""
+
+        def token_expired(token: str, skew: int = 300) -> bool:
+            """True if the JWT is missing, unreadable, or expires within `skew` seconds."""
+            try:
+                payload = token.split('.')[1]
+                payload += '=' * (-len(payload) % 4)
+                exp = json.loads(base64.urlsafe_b64decode(payload))['exp']
+                return time.time() > exp - skew
+            except Exception:
+                return True
+        
         if not self.authorization or token_expired(self.authorization):
             self.get_authorization()
         return bool(self.authorization)
