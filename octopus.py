@@ -3,7 +3,7 @@ import json
 from bs4 import BeautifulSoup
 from collections import defaultdict
 
-class OctopusAPI:
+class OctopusAuth:
     def __init__(self, json_file: str):
         self.json_file = json_file
 
@@ -266,10 +266,10 @@ class OctopusAPI:
             print(f"An error occurred: {e}")
             return None
 
-class Octopus:
+class OctopusAPI:
     def __init__(self, json_file: str):
         self.json_file = json_file
-        self.octopusapi = OctopusAPI(json_file)
+        self.octopusauth = OctopusAuth(json_file)
 
         self.api_member_details = "/Member/Details"
         self.api_open_surveys = "/Survey/OpenSurveys"
@@ -280,14 +280,14 @@ class Octopus:
         self.api_get_surveys = '/SurveyHistory/GetHistories'
         self.api_get_incentives = '/Incentive/GetIncentives'
 
-    def _get_member_details(self):
-        return self.octopusapi.get_request(self.api_member_details)
+    def get_member_details(self):
+        return self.octopusauth.get_request(self.api_member_details)
 
-    def _get_open_surveys(self):
-        return self.octopusapi.get_request(self.api_open_surveys)
+    def get_open_surveys(self):
+        return self.octopusauth.get_request(self.api_open_surveys)
 
-    def _get_all_surveys(self):
-        return self.octopusapi.post_request(
+    def get_all_surveys(self):
+        return self.octopusauth.post_request(
             self.api_get_surveys,
             payload={
                 "PageNumber": 0,
@@ -295,8 +295,8 @@ class Octopus:
             }
         )
 
-    def _get_incentive_history(self):
-        return self.octopusapi.post_request(
+    def get_incentive_history(self):
+        return self.octopusauth.post_request(
             self.api_get_incentives,
             payload={
                 "PageNumber": 0,
@@ -304,8 +304,8 @@ class Octopus:
             }
         )
 
-    def _get_redemptions(self):
-        return self.octopusapi.post_request(
+    def get_redemptions(self):
+        return self.octopusauth.post_request(
             self.api_get_redemptions,
             payload={
                 "PageNumber": 0,
@@ -313,10 +313,13 @@ class Octopus:
             }
         )
 
-    # --- end of api requests ---
-    
+class Octopus:
+    def __init__(self, json_file: str):
+        self.json_file = json_file
+        self.octopusapi = OctopusAPI(json_file)
+
     def get_balance(self):
-        return self._get_member_details()['points']
+        return self.octopusapi.get_member_details()['points']
     
     def get_redeemable_balance(self, balance: float = None):
         if balance is None:
@@ -324,7 +327,7 @@ class Octopus:
         return 0 if balance < 20 else int(balance//5*5)
 
     def get_total_redeemed(self):
-        redemptions = self._get_redemptions()
+        redemptions = self.octopusapi.get_redemptions()
 
         total_redeemed = sum([r['amount'] for r in redemptions])
         return total_redeemed
@@ -337,7 +340,7 @@ class Octopus:
         return total_redeemed + balance
     
     def get_open_surveys(self):
-        open_surveys = self._get_open_surveys()
+        open_surveys = self.octopusapi.get_open_surveys()
 
         survey_count = len(open_surveys)
         total_earnings = sum([s['incentive'] for s in open_surveys])
@@ -350,7 +353,7 @@ class Octopus:
         }
 
     def survey_stats(self):
-        surveys = self._get_all_surveys()
+        surveys = self.octopusapi.get_all_surveys()
 
         filtered_counts = defaultdict(int)
 
