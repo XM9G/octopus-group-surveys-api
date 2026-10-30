@@ -29,9 +29,10 @@ Possible Earnings: $8.40
 Total Time: 30 minutes
 
 ===== Balance =====
-Current Balance: $18.12
+Current Balance: $28.12
+Redeemable Balance: $20.00
 Total Redeemed: $120.00
-Time Required: $138.12
+Time Required: $148.12
 
 ===== Survey Stats =====
 Complete: 61
