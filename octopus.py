@@ -4,6 +4,7 @@ import json
 import random
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from bs4 import BeautifulSoup
 
 
@@ -229,7 +230,7 @@ class OctopusAuth:
                 payload = token.split('.')[1]
                 payload += '=' * (-len(payload) % 4)
                 exp = json.loads(base64.urlsafe_b64decode(payload))['exp']
-                return time.time() > exp - skew
+                return time.time() > (exp - skew)
             except Exception:
                 return True
         
@@ -357,9 +358,23 @@ class OctopusAPI:
     def get_redemptions(self):
         return self._post(self.api_get_redemptions, {"PageNumber": 0, "PageSize": 1000})
 
+    def setup_redeem_approval(self, amount: int):
+        return self._post(self.api_redeem_setup_approval, {"Amount": amount})
+ 
+    def check_redeem_approval(self):
+        return self._get(self.api_redeem_check_for_approval)
+ 
+    def redeem_cash(self, bsb: str, account_number: str, amount: int):
+        return self._post(self.api_redeem_cash, {
+            "AccountBsb": bsb,
+            "AccountNumber": account_number,
+            "Amount": amount
+        })
+
 
 class Octopus:
-    def __init__(self, json_file: str):
+    def __init__(self, json_file: str, auto_message_function: Callable[[], object] = None):
+        self.auto_message = auto_message_function
         self.json_file = json_file
         self.octopusapi = OctopusAPI(json_file)
 
@@ -423,6 +438,87 @@ class Octopus:
 
         return dict(filtered_counts)
 
+    
+    @staticmethod
+    def _is_approved(result) -> bool:
+        if result is True:
+            return True
+        if isinstance(result, str):
+            return result.strip().lower() == 'true'
+        if isinstance(result, dict):
+            return result.get('value') is True or result.get('approved') is True
+        return False
+ 
+    def redeem_cash(self, amount: int = None) -> bool:
+        """Redeem cash to the bank account in the login file. Returns True on success."""
+        if amount is not None:
+            if amount < 20:
+                print('Amount to redeem must be at least $20.')
+                return False
+            if amount % 5 != 0:
+                print('Amount to redeem must be a multiple of 5.')
+                return False
+ 
+        # Bank details come from the login file
+        credentials = self.octopusapi.octopusauth.credentials
+        bsb = str(credentials.get('bsb') or '').strip()
+        account_number = str(credentials.get('account_number') or '').strip()
+ 
+        if not bsb or not account_number:
+            print("Missing 'bsb' and/or 'account_number' in the login file. Add them to redeem cash.")
+            return False
+ 
+        redeemable = self.get_redeemable_balance()
+ 
+        if amount is None:
+            amount = redeemable
+            if amount < 20:
+                print('Redeemable balance is below $20.')
+                return False
+        elif amount > redeemable:
+            print(f'Only ${redeemable} is redeemable right now.')
+            return False
+ 
+        # 1. Ask for approval
+        print(f'Requesting approval to redeem ${amount}...')
+        if self.octopusapi.setup_redeem_approval(amount) is None:
+            print('Failed to set up approval. Redemption cancelled.')
+            return False
+ 
+        # 2. Notify the user (e.g. send the email/text) after a short pause
+        time.sleep(2)
+        if self.auto_message is not None:
+            try:
+                self.auto_message()
+            except Exception as e:
+                print(f'Error running auto message function: {e}')
+        else:
+            print('Not auto message function given. Manually approve the redemption.')
+ 
+        # 3. Poll for approval
+        print(f'Waiting for approval (checking every {15}s, up to {300 // 60} minutes)...')
+        deadline = time.monotonic() + 300
+        approved = False
+ 
+        while time.monotonic() < deadline:
+            if self._is_approved(self.octopusapi.check_redeem_approval()):
+                approved = True
+                break
+            time.sleep(15)
+ 
+        if not approved:
+            print(f'Approval not received within {300 // 60} minutes. Redemption failed.')
+            return False
+ 
+        # 4. Redeem
+        print('Approval confirmed. Redeeming...')
+        time.sleep(2)
+        if self.octopusapi.redeem_cash(bsb, account_number, amount) is None:
+            print('RedeemCash request failed.')
+            return False
+ 
+        print(f'Redemption of ${amount} submitted successfully.')
+        return True
 
 if __name__ == '__main__':
 
@@ -436,7 +532,7 @@ if __name__ == '__main__':
     survey_stats = o.survey_stats(active=open_surveys['number']) # active parameter optional as well
 
     print('===== Open Surveys =====')
-    print(f'You have {open_surveys['number']} open survey{'' if open_surveys['number'] == 1 else 's'}.')
+    print(f"You have {open_surveys['number']} open survey{'' if open_surveys['number'] == 1 else 's'}.")
     print(f'Possible Earnings: ${open_surveys['total_earnings']:.2f}')
     print(f'Total Time: {open_surveys['total_time']} minute{'' if open_surveys['total_time'] == 1 else 's'}')
 
